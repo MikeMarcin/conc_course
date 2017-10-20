@@ -29,13 +29,7 @@ constexpr size_t alloc_size = 2 * max_num_lines * page_size;
 // pointer_chase == 1: do read and use read to find next address
 uint64_t access_mem(int align, int n, int runs, int pointer_chase) {
   //  static uint64_t a[2 * MAX_NUM_LINES * page_size];
- #ifdef HUGEPAGE
-  uint64_t *a = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-		     MAP_PRIVATE| MAP_ANONYMOUS, -1, 0);
-  madvise(a, alloc_size, MADV_HUGEPAGE);
-#else
-  //static uint64_t a[alloc_size];
-#endif // HUGEPAGE
+
   auto a = std::make_unique< uint64_t[] >( alloc_size );
 
 

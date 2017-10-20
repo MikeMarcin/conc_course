@@ -10,7 +10,6 @@ constexpr size_t line_size = 64;
 constexpr size_t page_size = 4_kib;
 constexpr size_t max_num_lines = 100'000;
 constexpr size_t word_size = 8;
-constexpr size_t alloc_size = 2 * max_num_lines * page_size;
 
 constexpr size_t element_size = 1;
 constexpr size_t padding_size = 0;
@@ -131,7 +130,7 @@ void BM_memory_read( benchmark::State& state ) {
     state.counters.insert( {"working_set", working_set_log2 } );
 }
 
-static void CustomArguments( benchmark::internal::Benchmark* b ) {
+static void MemoryReadArgs( benchmark::internal::Benchmark* b ) {
     for ( int j = 0; j < 3; ++j ) {
         // sequential, reverse, random
         for ( int i = 10; i <= 28; ++i ) {
@@ -140,10 +139,76 @@ static void CustomArguments( benchmark::internal::Benchmark* b ) {
     }
 }
 
-BENCHMARK_TEMPLATE( BM_memory_read, element<8> )->Apply( CustomArguments );
-BENCHMARK_TEMPLATE( BM_memory_read, element<64> )->Apply( CustomArguments );
-BENCHMARK_TEMPLATE( BM_memory_read, element<128> )->Apply( CustomArguments );
-BENCHMARK_TEMPLATE( BM_memory_read, element<256> )->Apply( CustomArguments );
+//BENCHMARK_TEMPLATE( BM_memory_read, element<8> )->Apply( MemoryReadArgs );
+//BENCHMARK_TEMPLATE( BM_memory_read, element<64> )->Apply( MemoryReadArgs );
+//BENCHMARK_TEMPLATE( BM_memory_read, element<128> )->Apply( MemoryReadArgs );
+//BENCHMARK_TEMPLATE( BM_memory_read, element<256> )->Apply( MemoryReadArgs );
+enum class align_type {
+    aligned,
+    unaligned,
+};
+
+void BM_cache_conflict( benchmark::State& state ) {
+    // adapted from https://danluu.com/3c-conflict/
+    const int working_set_log2 = state.range( 0 );
+    const int n = 1 << working_set_log2;
+    const int pointer_chase = 1; // state.range( 2 );
+    align_type alignType = static_cast<align_type>(state.range( 1 ));
+    const int align = alignType == align_type::unaligned ? static_cast<int>(line_size) : 0;
+
+    // Do 'n' accesses with a relative offset of 'align'
+    // pointer_chase == 0: do reads and use the read in a running computation
+    // pointer_chase == 1: do read and use read to find next address
+    
+    //  static uint64_t a[2 * MAX_NUM_LINES * page_size];
+
+    constexpr size_t alloc_size = 2 * max_num_lines * page_size;
+    auto a = std::make_unique< uint64_t[] >( alloc_size );
+
+    uint64_t offset;
+
+    int i, j;
+    // Fill up array with some nonsense
+    for ( i = 0; i < n * page_size; i++ ) {
+        a[i] = i % 17;
+    }
+    // Generate pointer chasing array accesses. Each a[i] that we want to access
+    // points to something that's (page_size+align)/word_size down the line. The
+    // last entry points to 0 so that we loop around.
+    offset = 0;
+    for ( i = 0; i < n * page_size; i += (page_size + align) / word_size ) {
+        offset += (page_size + align) / word_size;
+        a[i] = offset;
+    }
+    a[n * page_size / word_size] = 0;
+
+    // Do accesses separated by one page +/- alignment offset
+    for ( auto _ : state ) {
+        offset = 0;
+        for ( j = 0; j < n; j++ ) {
+            auto next = a[offset];
+            benchmark::DoNotOptimize( next );
+            if ( pointer_chase ) {
+                offset = next;
+            }
+            else {
+                offset += page_size + align;
+            }
+        }
+    }    
+
+    state.counters.insert( { "working_set", working_set_log2 } );
+    state.counters.insert( { "align_type", static_cast<int>(alignType) } );
+}
+
+static void CacheConflictArgs( benchmark::internal::Benchmark* b ) {
+    for ( int j : {1, 0} ) {  // aligned / unaligned
+        for ( int i = 0; i <= 10; ++i ) {
+            b->Args( { i, j } );
+        }
+    }
+}
+BENCHMARK( BM_cache_conflict )->Apply( CacheConflictArgs );
 
 #include <windows.h>
 struct pin_to_core {
