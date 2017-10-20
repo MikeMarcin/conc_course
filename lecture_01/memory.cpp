@@ -203,7 +203,7 @@ void BM_cache_conflict( benchmark::State& state ) {
 
 static void CacheConflictArgs( benchmark::internal::Benchmark* b ) {
     for ( int j : {1, 0} ) {  // aligned / unaligned
-        for ( int i = 0; i <= 10; ++i ) {
+        for ( int i = 0; i <= 13; ++i ) {
             b->Args( { i, j } );
         }
     }
