@@ -6,15 +6,6 @@
 constexpr size_t operator "" _kib( size_t n ) { return n << 10; }
 constexpr size_t operator "" _mib( size_t n ) { return n << 20; }
 
-constexpr size_t line_size = 64;
-constexpr size_t page_size = 4_kib;
-constexpr size_t max_num_lines = 100'000;
-constexpr size_t word_size = 8;
-
-constexpr size_t element_size = 1;
-constexpr size_t padding_size = 0;
-//constexpr size_t working_set_size = 1_mib;
-
 constexpr size_t bigger_than_cachesize = 10_mib;
 
 struct clear_cache {
@@ -139,16 +130,21 @@ static void MemoryReadArgs( benchmark::internal::Benchmark* b ) {
     }
 }
 
-//BENCHMARK_TEMPLATE( BM_memory_read, element<8> )->Apply( MemoryReadArgs );
-//BENCHMARK_TEMPLATE( BM_memory_read, element<64> )->Apply( MemoryReadArgs );
-//BENCHMARK_TEMPLATE( BM_memory_read, element<128> )->Apply( MemoryReadArgs );
-//BENCHMARK_TEMPLATE( BM_memory_read, element<256> )->Apply( MemoryReadArgs );
+BENCHMARK_TEMPLATE( BM_memory_read, element<8> )->Apply( MemoryReadArgs );
+BENCHMARK_TEMPLATE( BM_memory_read, element<64> )->Apply( MemoryReadArgs );
+BENCHMARK_TEMPLATE( BM_memory_read, element<128> )->Apply( MemoryReadArgs );
+BENCHMARK_TEMPLATE( BM_memory_read, element<256> )->Apply( MemoryReadArgs );
+
 enum class align_type {
     aligned,
     unaligned,
 };
 
 void BM_cache_conflict( benchmark::State& state ) {
+    constexpr size_t line_size = 64;
+    constexpr size_t page_size = 4_kib;
+    constexpr size_t word_size = 8;
+
     // adapted from https://danluu.com/3c-conflict/
     const int working_set_log2 = state.range( 0 );
     const int n = 1 << working_set_log2;
@@ -159,9 +155,8 @@ void BM_cache_conflict( benchmark::State& state ) {
     // Do 'n' accesses with a relative offset of 'align'
     // pointer_chase == 0: do reads and use the read in a running computation
     // pointer_chase == 1: do read and use read to find next address
-    
-    //  static uint64_t a[2 * MAX_NUM_LINES * page_size];
 
+    constexpr size_t max_num_lines = 100'000;
     constexpr size_t alloc_size = 2 * max_num_lines * page_size;
     auto a = std::make_unique< uint64_t[] >( alloc_size );
 
